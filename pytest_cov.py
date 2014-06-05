@@ -4,6 +4,34 @@
 import pytest
 
 import cov_core
+import cov_core_init
+
+from py._process import forkedfunc
+
+
+class PatchedForkedFunc(forkedfunc.ForkedFunc):
+
+    def _child(self, nice_level):
+        import os
+        _exit = os._exit
+        exit_args = list()
+
+        def _capture_args(*args):
+            exit_args.extend(list(args))
+
+        os._exit = _capture_args
+
+        cov = cov_core_init.init()
+        try:
+            super(PatchedForkedFunc, self)._child(nice_level)
+        finally:
+            cov_core.multiprocessing_finish(cov)
+            _exit(*exit_args)
+
+forkedfunc.ForkedFunc = PatchedForkedFunc
+
+from py import process
+process.ForkedFunc = PatchedForkedFunc
 
 
 def pytest_addoption(parser):
